@@ -1,0 +1,142 @@
+
+import os
+import textwrap
+import tempfile
+from flask import Flask, request, jsonify, send_file
+from PIL import Image, ImageDraw, ImageFont
+from gtts import gTTS
+from moviepy.editor import ImageClip, AudioFileClip, concatenate_videoclips
+
+app = Flask(__name__)
+
+W, H = 720, 1280
+
+def font(size):
+    paths = [
+        "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
+        "/usr/share/fonts/truetype/liberation2/LiberationSans-Regular.ttf"
+    ]
+    for path in paths:
+        if os.path.exists(path):
+            return ImageFont.truetype(path, size)
+    return ImageFont.load_default()
+
+def make_scene(title, narration, index, folder):
+    im = Image.new("RGB", (W, H), "#e8d9b5")
+    d = ImageDraw.Draw(im)
+
+    # Latar kertas tua dan garis sketsa
+    for y in range(30, H, 38):
+        d.line((20, y, W-20, y), fill="#ddc9a3", width=1)
+
+    # Ilustrasi kuil sederhana bergaya sketsa sepia
+    ink = "#765638"
+    d.rectangle((75, 350, 645, 700), outline=ink, width=4)
+    d.polygon([(80, 350), (360, 170), (640, 350)],
+              outline=ink, fill="#d8c29a")
+    d.rectangle((135, 420, 585, 700), outline=ink, width=4)
+
+    for x in [180, 270, 360, 450, 540]:
+        d.rectangle((x, 470, x+35, 700), outline=ink, width=3)
+
+    d.polygon([(270, 420), (360, 260), (450, 420)],
+              outline=ink, fill="#cbb38a")
+    d.line((60, 720, 660, 720), fill=ink, width=4)
+
+    # Judul
+    d.text((45, 60), "SEJARAH & MISTERI", font=font(27), fill=ink)
+    y = 105
+    for line in textwrap.wrap(title, width=24):
+        d.text((45, y), line, font=font(42), fill="#493522")
+        y += 54
+
+    # Subtitle
+    lines = textwrap.wrap(narration, width=36)
+    box_y = 900
+    d.rounded_rectangle((35, box_y-25, 685, 1190),
+                        radius=18, fill="#f4e8ce",
+                        outline=ink, width=3)
+    y = box_y
+    for line in lines:
+        d.text((55, y), line, font=font(27), fill="#493522")
+        y += 42
+        if y > 1150:
+            break
+
+    path = os.path.join(folder, f"scene{index}.png")
+    im.save(path)
+    return path
+
+@app.get("/")
+def home():
+    return "SejarahBot Video Engine aktif."
+
+@app.get("/health")
+def health():
+    return jsonify({"status": "aktif"})
+
+@app.post("/buat")
+def buat():
+    data = request.get_json(silent=True) or {}
+    topic = str(data.get("topic", "Misteri Angkor Wat"))[:150]
+
+    narrations = [
+        f"Pernahkah kamu membayangkan {topic}?",
+        "Bangunan kuno menyimpan jejak kehidupan manusia masa lalu.",
+        "Arsitektur, prasasti, dan artefak membantu peneliti memahami sejarah.",
+        "Sebagian pertanyaan masih membutuhkan penelitian dan bukti.",
+        "Setiap petunjuk membawa kita lebih dekat untuk memahami masa lalu."
+    ]
+
+    temp = tempfile.mkdtemp(prefix="sejarahbot_")
+    clips = []
+    audio_path = os.path.join(temp, "narasi.mp3")
+    video_path = os.path.join(temp, "sejarahbot.mp4")
+
+    try:
+        images = [
+            make_scene(topic, narrations[i], i+1, temp)
+            for i in range(5)
+        ]
+
+        full_text = " ".join(narrations)
+        gTTS(text=full_text, lang="id").save(audio_path)
+        audio = AudioFileClip(audio_path)
+
+        duration = audio.duration
+        per_scene = duration / len(images)
+
+        for image_path in images:
+            clip = ImageClip(image_path).set_duration(per_scene)
+            clips.append(clip)
+
+        video = concatenate_videoclips(clips, method="compose")
+        video = video.set_audio(audio)
+        video.write_videofile(
+            video_path,
+            fps=24,
+            codec="libx264",
+            audio_codec="aac",
+            preset="ultrafast",
+            logger=None
+        )
+
+        video.close()
+        audio.close()
+        for clip in clips:
+            clip.close()
+
+        return send_file(
+            video_path,
+            mimetype="video/mp4",
+            as_attachment=True,
+            download_name="sejarahbot.mp4"
+        )
+
+    except Exception as e:
+        app.logger.exception("Gagal membuat video")
+        return jsonify({"error": str(e)}), 500
+
+if __name__ == "__main__":
+    app.run(host="0.0.0.0",
+            port=int(os.environ.get("PORT", 10000)))
