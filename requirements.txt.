@@ -1,0 +1,7 @@
+
+Flask
+gunicorn
+Pillow
+gTTS
+moviepy==1.0.3
+imageio-ffmpeg
