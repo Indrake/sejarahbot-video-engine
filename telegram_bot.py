@@ -107,18 +107,21 @@ async def handle_video(update: Update, context: ContextTypes.DEFAULT_TYPE) -> No
         await update.message.reply_text(f"Pemrosesan video gagal: {exc}")
 
 
-async def main() -> None:
+
+def main() -> None:
     if not TOKEN:
         raise RuntimeError(
-            "TELEGRAM_BOT_TOKEN belum di-set. Jalankan: export TELEGRAM_BOT_TOKEN='your_token_here'"
+            "TELEGRAM_BOT_TOKEN belum di-set. "
+            "Atur token melalui environment variable terlebih dahulu."
         )
 
     app = Application.builder().token(TOKEN).build()
     app.add_handler(CommandHandler("start", start))
     app.add_handler(CommandHandler("help", help_command))
     app.add_handler(MessageHandler(filters.VIDEO, handle_video))
-    await app.run_polling()
+
+    app.run_polling()
 
 
 if __name__ == "__main__":
-    asyncio.run(main())
+    main()
