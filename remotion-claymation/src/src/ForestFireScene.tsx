@@ -1,3 +1,4 @@
+import { AudioTrack } from "./AudioTrack";
 import { Caption } from "./Caption";
 import React from "react";
 import { useCurrentFrame } from "remotion";
@@ -70,7 +71,8 @@ export const ForestFireScene: React.FC = () => {
             fill="#ffe18a" />
         </g>
       </svg>
-    <Caption />
+      <Caption />
+      <AudioTrack />
     </div>
   );
 };
